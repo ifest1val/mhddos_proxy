@@ -255,7 +255,7 @@ def start(args):
         else:
             proxies = list(update_proxies(args.proxies, proxies))
 
-        period = 150
+        period = 300
         run_ddos(
             proxies,
             targets,
