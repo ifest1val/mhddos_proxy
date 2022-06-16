@@ -1,13 +1,13 @@
-FROM --platform=$BUILDPLATFORM python:3.10-alpine as builder
-RUN apk update && apk add --update git cargo gcc rust make musl-dev python3-dev libffi-dev openssl-dev
-WORKDIR mhddos_proxy
+FROM --platform=$TARGETPLATFORM python:3.10-slim
+
+RUN apt-get update && apt-get -y install git
+RUN python3 -m venv /opt/venv
+ENV IS_DOCKER=1 PATH="/opt/venv/bin:$PATH"
+
 COPY ./requirements.txt .
-RUN pip3 install --target=/mhddos_proxy/dependencies -r requirements.txt
-COPY . .
+RUN pip install --no-cache-dir -U pip wheel && pip install --no-cache-dir --only-binary=:all: -r requirements.txt
 
-FROM python:3.10-alpine
+RUN git clone https://github.com/porthole-ascend-cinnamon/mhddos_proxy.git
 WORKDIR mhddos_proxy
-COPY --from=builder	/mhddos_proxy .
-ENV PYTHONPATH="${PYTHONPATH}:/mhddos_proxy/dependencies" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
-ENTRYPOINT ["python3", "./runner.py"]
+ENTRYPOINT ["./runner.sh", "python3"]

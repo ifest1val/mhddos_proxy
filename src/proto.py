@@ -92,7 +92,7 @@ class FloodIO(asyncio.Protocol):
         if hasattr(self._transport, "pause_reading"):
             self._transport.pause_reading()
         self._handle = self._loop.call_soon(self._step)
-        self._prob_handle = self._loop.call_later(CONN_PROBE_PERIOD, self._probe)
+        self._probe_handle = self._loop.call_later(CONN_PROBE_PERIOD, self._probe)
 
     def _probe(self) -> None:
         # the approach with "probing" instead of direct timeouts tracking (e.g.
@@ -203,7 +203,7 @@ class FloodIO(asyncio.Protocol):
             else:
                 raise ValueError(f"Unknown flood opcode {op}")
         except StopIteration:
-            self._transport.close()
+            self._transport.abort()
             self._transport = None
 
     def _handle_cancellation(self, on_close):

