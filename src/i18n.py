@@ -5,7 +5,7 @@ TRANSLATIONS = {
     'Selected': {
         'ua': 'Обрано'
     },
-    'targets to attack': {
+    'targets for the attack': {
         'ua': 'цілей для атаки'
     },
     'Target': {
@@ -17,11 +17,8 @@ TRANSLATIONS = {
     'Method': {
         'ua': 'Метод'
     },
-    'Connections': {
-        'ua': "З'єднань"
-    },
-    'Requests': {
-        'ua': 'Запити'
+    'Packets': {
+        'ua': 'Пакети'
     },
     'Traffic': {
         'ua': 'Трафік'
@@ -29,8 +26,8 @@ TRANSLATIONS = {
     'Total': {
         'ua': 'Усього'
     },
-    'Loaded config': {
-        'ua': 'Завантажено конфіг'
+    'Loaded config for': {
+        'ua': 'Завантажено конфіг на'
     },
     'Targets loading failed': {
         'ua': 'Завантаження цілей завершилося помилкою:'
@@ -98,8 +95,8 @@ TRANSLATIONS = {
     'Instead of high `-t` value consider using': {
         'ua': 'Замість високого значення `-t` краще використати'
     },
-    'The `--debug` option is not needed for common usage and may impact performance': {
-        'ua': 'Параметр `--debug` не потрібен для звичайного використання і може впливати на продуктивність'
+    'The `--debug` option is deprecated to avoid negative impact on performance': {
+        'ua': 'Параметр `--debug` не підтримується через негативний вплив на продуктивність'
     },
     'Try running with automatic updates: ': {
         'ua': 'Радимо запускати скрипт з автоматичним оновленням: '
@@ -110,18 +107,18 @@ TRANSLATIONS = {
     '(increased network efficiency)': {
         'ua': '(підвищенна ефективність роботи з мережею)'
     },
-    'for': {
-        'ua': 'на'
-    },
     'targets': {
         'ua': 'цілей'
     },
-    'targets for the attack': {
-        'ua': 'цілей для атаки'
-    },
     "is not available and won't be attacked": {
         'ua': 'не доступна і не буде атакована'
-    }
+    },
+    'Capacity': {
+        'ua': 'Потужність'
+    },
+    'Connections': {
+        'ua': "З'єднань"
+    },
 }
 
 LANGUAGES = ['ua', 'en']

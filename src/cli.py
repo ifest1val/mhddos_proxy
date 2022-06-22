@@ -1,9 +1,7 @@
 import argparse
-import random
 
-from .core import COPIES_AUTO, DEFAULT_THREADS, SCHEDULER_FORK_SCALE, SCHEDULER_INITIAL_CAPACITY
+from .core import COPIES_AUTO, DEFAULT_THREADS, Methods, SCHEDULER_FORK_SCALE, SCHEDULER_INITIAL_CAPACITY
 from .i18n import LANGUAGES
-from .mhddos import Methods
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -16,6 +14,7 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         '-c',
         '--config',
+        dest='targets_config',
         help='URL or local path to file with attack targets',
     )
     parser.add_argument(
@@ -31,21 +30,15 @@ def init_argparse() -> argparse.ArgumentParser:
         help='Number of copies (default is 1). Use "auto" to set the value automatically',
     )
     parser.add_argument(
-        '--debug',
-        action='store_true',
-        default=False,
-        help='Detailed log for each target',
-    )
-    parser.add_argument(
         '--vpn',
         dest='use_my_ip',
-        const=10,
+        const=2,
         default=0,
         nargs='?',
         type=int,
         action='store',
         help='Use both my IP and proxies for the attack. '
-             'Optionally, specify a percent of using my IP (default is 10%%)',
+             'Optionally, specify a chance of using my IP (default is 2%%)',
     )
     parser.add_argument(
         '--http-methods',
@@ -98,6 +91,7 @@ def init_argparse() -> argparse.ArgumentParser:
     )
 
     # Deprecated
-    parser.add_argument('--table', action='store_true', default=False)
+    parser.add_argument('--table', action='store_true', help='[DEPRECATED]')
+    parser.add_argument('--debug', action='store_true', help='[DEPRECATED]')
 
     return parser
